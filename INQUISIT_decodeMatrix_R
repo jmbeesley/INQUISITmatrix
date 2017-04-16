@@ -1,0 +1,48 @@
+#### RUNS ON HPC
+
+module load R/3.3.1
+
+
+library(readr)
+library(stringr)
+library(dplyr)
+library(tidyr)
+
+outputDir='/working/lab_georgiat/jonathB/INQUISITmatrix/SNPsets/decoded/'
+annotationFiles='/working/lab_georgiat/jonathB/INQUISITmatrix/INQUISIT/annotationLists'
+INQmat.distal="/working/lab_georgiat/jonathB/INQUISITmatrix/SNPsets/results/INQUISIT_distalTargets"
+INQmatDistal=read_delim(INQmat.distal, delim='\t', col_names=c("CHROM","SNP","GENE","TargetInfo"))
+
+
+exTract = function(i) {
+
+targetAnnotFiles = list.files(file.path(annotationFiles),
+							  pattern = paste(i, 'targetAnnotations', sep = '.'))
+
+targetAnnotData  = lapply(file.path(annotationFiles, 
+       								targetAnnotFiles), 
+									
+				    read_delim, col_names = "TargetAnnotation", delim = "")
+
+targetAnnotData  = lapply(targetAnnotData, function(x) x[-c(1,2), drop=F])
+
+INQdata1 = INQmatDistal %>% filter(CHROM == i)
+
+INQsplit        = strsplit(INQdata1$TargetInfo, "")
+names(INQsplit) = paste(INQdata1$SNP, INQdata1$GENE, sep="_")
+INQsplit.t      = data.frame(as.list(INQsplit))
+INQsplit.named  = cbind(targetAnnotData, INQsplit.t)
+
+INQdata = gather(INQsplit.named, M, N, -TargetAnnotation) %>% 
+          filter(N == 1) %>% 
+          select(M, TargetAnnotation) %>% 
+          separate(M, into = c("SNP", "GENE"), sep="_") 
+
+INQdata$TargetAnnotation  = sub(paste("",i,"targetPred.gz",sep="."),"",INQdata$TargetAnnotation)
+
+INQdata %>% write.table(paste(outputDir,i,'_targetPredictionData', sep=''), row.names = F, quote = F, sep='\t')
+
+}
+
+lapply(unique(INQmatDistal$CHROM), exTract)
+
